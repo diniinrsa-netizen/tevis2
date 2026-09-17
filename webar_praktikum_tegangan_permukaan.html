@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual WebAR Lab: Fluida Statis</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js 3D Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Chart.js for Dynamic Graphing -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0b0f19; color: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        
+        .canvas-container { position: relative; width: 100%; height: 100%; min-height: 440px; overflow: hidden; border-radius: 1.25rem; }
+        #webcamVideo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; display: none; }
+        #threeCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: auto; }
+        
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; overflow: visible !important; height: auto !important; }
+            .print-page { background: white !important; color: black !important; border: none !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+            .print-card { background: #f8fafc !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; box-shadow: none !important; margin-bottom: 1rem !important; }
+            .print-input { background: white !important; color: black !important; border: 1px solid #94a3b8 !important; }
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100">
+
+    <div id="toast" class="hidden fixed top-5 right-5 z-50 bg-slate-900 border border-indigo-500/50 text-slate-100 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 transition-all">
+        <i id="toastIcon" class="fa-solid fa-circle-info text-indigo-400 text-lg"></i>
+        <span id="toastMessage" class="text-xs font-semibold">Notifikasi Praktikum</span>
+    </div>
+
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 z-30 no-print flex-shrink-0">
+        <div class="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-center gap-3">
+            
+            <!-- App Title & Description -->
+            <div class="flex items-center space-x-3 w-full lg:w-auto">
+                <div class="p-2.5 bg-gradient-to-tr from-indigo-600 to-cyan-500 text-white rounded-2xl shadow-lg shadow-indigo-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-flask-vial text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm sm:text-base font-extrabold text-white tracking-wide">
+                        Virtual WebAR Lab: Fluida Statis
+                    </h1>
+                    <p class="text-[11px] text-slate-400">Eksperimen Tegangan Permukaan & Viskositas Fluida</p>
+                </div>
+            </div>
+
+            <!-- Header Controls & Experiment Switcher -->
+            <div class="flex flex-wrap items-center justify-end gap-2 w-full lg:w-auto text-xs">
+                
+                <!-- Experiment Mode Selector -->
+                <div class="flex bg-slate-950 p-1 rounded-2xl border border-slate-800">
+                    <button onclick="switchLabMode('surface')" id="modeBtnSurface" class="px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 bg-indigo-600 text-white shadow">
+                        <i class="fa-solid fa-droplet"></i>
+                        <span>Tegangan Permukaan</span>
+                    </button>
+                    <button onclick="switchLabMode('viscosity')" id="modeBtnViscosity" class="px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+                        <i class="fa-solid fa-vial"></i>
+                        <span>Viskositas</span>
+                    </button>
+                </div>
+
+                <!-- WebAR Camera Toggle Button -->
+                <button onclick="toggleWebARCamera()" id="headerARBtn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-semibold rounded-xl transition flex items-center gap-2">
+                    <i class="fa-solid fa-camera"></i>
+                    <span id="arCamHeaderBtnText">Aktifkan Kamera AR</span>
+                </button>
+
+                <!-- Print LKPD Button -->
+                <button onclick="goToStep(5)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center gap-2">
+                    <i class="fa-solid fa-print"></i>
+                    <span>Cetak LKPD</span>
+                </button>
+            </div>
+
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto custom-scrollbar relative p-3 sm:p-5">
+        <div class="max-w-7xl mx-auto space-y-6">
+
+            <section class="glass-card p-5 sm:p-6 rounded-3xl border border-slate-800 space-y-4 no-print">
+                <div class="flex items-center gap-2 text-indigo-400 font-bold border-b border-slate-800 pb-2">
+                    <i class="fa-solid fa-address-card text-lg"></i>
+                    <h2 class="text-xs uppercase tracking-wider">IDENTITAS PESERTA DIDIK</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div>
+                        <label class="block text-slate-300 mb-1 font-medium">Nama Siswa <span class="text-rose-400">*</span></label>
+                        <input type="text" id="inputStudentName" placeholder="Ketik Nama Lengkap" onchange="syncStudentIdentity()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 mb-1 font-medium">Kelas / Kelompok <span class="text-rose-400">*</span></label>
+                        <input type="text" id="inputStudentClassGroup" placeholder="Contoh: XI IPA 1 / Kel 3" onchange="syncStudentIdentity()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 mb-1 font-medium">Tanggal Praktikum</label>
+                        <input type="date" id="inputStudentDate" onchange="syncStudentIdentity()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+            </section>
+
+            <section class="glass-card p-5 sm:p-6 rounded-3xl border border-slate-800 space-y-3 no-print">
+                <div class="flex items-center gap-2 text-amber-400 font-bold border-b border-slate-800 pb-2">
+                    <i class="fa-solid fa-bullseye text-lg"></i>
+                    <h2 class="text-xs uppercase tracking-wider">TUJUAN & PETUNJUK PRAKTIKUM</h2>
+                </div>
+
+                <ul id="objectiveList" class="space-y-2 text-xs text-slate-300 list-disc list-inside">
+                    <li>Mengamati gaya tegangan permukaan dan pengaruh surfaktan (sabun/detergen).</li>
+                    <li>Menganalisis fenomena viskositas fluida dan kecepatan terminal kelereng menggunakan Hukum Stokes.</li>
+                    <li>Atur variabel laboratorium virtual 3D, amati simulasi real-time, lalu catat data pengamatan ke LKPD Digital.</li>
+                </ul>
+            </section>
+
+            <nav class="flex items-center space-x-2 overflow-x-auto custom-scrollbar pb-1 text-xs no-print">
+                <button onclick="goToStep(1)" id="stepBtn1" class="px-3 py-1.5 rounded-xl font-bold transition bg-indigo-600 text-white shadow">
+                    1. Eksperimen 3D Virtual Lab
+                </button>
+                <button onclick="goToStep(2)" id="stepBtn2" class="px-3 py-1.5 rounded-xl font-medium transition bg-slate-800 text-slate-400 hover:text-white">
+                    2. Alat & Bahan Virtual
+                </button>
+                <button onclick="goToStep(3)" id="stepBtn3" class="px-3 py-1.5 rounded-xl font-medium transition bg-slate-800 text-slate-400 hover:text-white">
+                    3. Tabel Data & Grafik
+                </button>
+                <button onclick="goToStep(4)" id="stepBtn4" class="px-3 py-1.5 rounded-xl font-medium transition bg-slate-800 text-slate-400 hover:text-white">
+                    4. Analisis & Challenge
+                </button>
+                <button onclick="goToStep(5)" id="stepBtn5" class="px-3 py-1.5 rounded-xl font-medium transition bg-slate-800 text-slate-400 hover:text-white">
+                    5. Digital LKPD
+                </button>
+            </nav>
+
+            <section id="step1View" class="step-view grid grid-cols-1 lg:grid-cols-12 gap-5">
+                
+                <!-- Controls Side Panel -->
+                <div class="lg:col-span-4 glass-card p-5 rounded-3xl border border-slate-800 flex flex-col justify-between space-y-4">
+                    <div>
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+                            <span class="text-xs font-bold uppercase text-indigo-400 flex items-center gap-2">
+                                <i class="fa-solid fa-sliders"></i> Panel Pengatur Variabel
+                            </span>
+                            <span id="activeModeLabel" class="text-[10px] text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded font-mono border border-emerald-800">TEGANGAN PERMUKAAN</span>
+                        </div>
+
+                        <!-- Surface Tension Controls -->
+                        <div id="controlsSurface" class="space-y-4">
+                            <!-- Soap Slider -->
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between text-xs">
+                                    <label class="font-medium text-slate-200">Konsentrasi Detergen Sabun</label>
+                                    <span id="dispSoapPct" class="font-mono font-bold text-amber-400">0% (Air Murni)</span>
+                                </div>
+                                <input type="range" id="sliderSoapPct" min="0" max="5" step="1" value="0" oninput="updatePhysics()" class="w-full accent-indigo-500 cursor-pointer">
+                            </div>
+
+                            <!-- Test Object -->
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-medium text-slate-200">Pilih Benda Uji</label>
+                                <div class="grid grid-cols-3 gap-2 text-xs">
+                                    <button onclick="selectTestObj('klip')" id="objBtnKlip" class="p-2 bg-indigo-600 text-white rounded-xl font-semibold text-center">Klip Kertas</button>
+                                    <button onclick="selectTestObj('jarum')" id="objBtnJarum" class="p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold text-center">Jarum</button>
+                                    <button onclick="selectTestObj('silet')" id="objBtnSilet" class="p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold text-center">Silet Baja</button>
+                                </div>
+                            </div>
+
+                            <!-- Placement Technique -->
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-medium text-slate-200">Metode Peletakan</label>
+                                <div class="grid grid-cols-2 gap-2 text-xs">
+                                    <button onclick="selectTech('gentle')" id="techBtnGentle" class="p-2 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-xl font-semibold">Perlahan</button>
+                                    <button onclick="selectTech('drop')" id="techBtnDrop" class="p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold">Dijatuhkan</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Viscosity Controls -->
+                        <div id="controlsViscosity" class="space-y-4 hidden">
+                            <!-- Fluid Selection -->
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-medium text-slate-200">Pilih Jenis Fluida Uji</label>
+                                <select id="selectFluidType" onchange="updatePhysics()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none">
+                                    <option value="water">Air ($\eta \approx 0.001$ Pa·s)</option>
+                                    <option value="oil">Minyak Goreng ($\eta \approx 0.05$ Pa·s)</option>
+                                    <option value="glycerin">Gliserin ($\eta \approx 1.49$ Pa·s)</option>
+                                    <option value="honey">Madu Murni ($\eta \approx 10.0$ Pa·s)</option>
+                                </select>
+                            </div>
+
+                            <!-- Ball Radius Slider -->
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between text-xs">
+                                    <label class="font-medium text-slate-200">Jari-Jari Bola ($r$)</label>
+                                    <span id="dispBallRadius" class="font-mono font-bold text-cyan-400">0.5 cm</span>
+                                </div>
+                                <input type="range" id="sliderBallRadius" min="0.2" max="1.2" step="0.1" value="0.5" oninput="updatePhysics()" class="w-full accent-indigo-500 cursor-pointer">
+                            </div>
+
+                            <!-- Ball Material Density -->
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-medium text-slate-200">Bahan Bola Uji</label>
+                                <div class="grid grid-cols-2 gap-2 text-xs">
+                                    <button onclick="selectBallMat('steel')" id="ballMatSteel" class="p-2 bg-indigo-600 text-white rounded-xl font-semibold">Baja (7800 kg/m³)</button>
+                                    <button onclick="selectBallMat('glass')" id="ballMatGlass" class="p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold">Kaca (2500 kg/m³)</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-2">
+                            <button onclick="toggleMoleculeView()" id="btnMolToggle" class="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-cyan-400 font-semibold flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-atom"></i>
+                                <span id="molToggleText">Lihat Visualisasi Molekul</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Action Trigger Buttons -->
+                    <div class="space-y-2 pt-2 border-t border-slate-800">
+                        <button onclick="runExperimentAction()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 text-xs">
+                            <i class="fa-solid fa-play"></i>
+                            <span id="actionBtnText">Jalankan Simulasi / Tempatkan Benda</span>
+                        </button>
+                        <button onclick="recordDataTrial()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center justify-center gap-1.5 text-xs shadow">
+                            <i class="fa-solid fa-bookmark"></i>
+                            <span>Catat Data Pengamatan</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3D Canvas Viewport -->
+                <div class="lg:col-span-8 flex flex-col space-y-3">
+                    <div class="canvas-container bg-slate-950 border border-slate-800 flex-1 relative">
+                        <video id="webcamVideo" autoplay playsinline muted></video>
+                        <canvas id="threeCanvas"></canvas>
+
+                        <!-- AR Active Badge Overlay -->
+                        <div id="arBadgeOverlay" class="hidden absolute top-4 left-4 z-10 bg-rose-600/90 text-white text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-2 animate-pulse shadow">
+                            <i class="fa-solid fa-video"></i> WebAR Mode Active
+                        </div>
+
+                        <!-- Molecule Badge Overlay -->
+                        <div id="molBadgeOverlay" class="hidden absolute top-4 left-4 z-10 bg-cyan-600/90 text-white text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-2 shadow">
+                            <i class="fa-solid fa-atom"></i> Microscopic Molecule View
+                        </div>
+
+                        <!-- Real-time Telemetry Overlay -->
+                        <div class="absolute bottom-4 left-4 right-4 sm:right-auto z-10 glass-panel p-3.5 rounded-2xl max-w-sm space-y-2 border border-slate-700/60 shadow-2xl">
+                            <div class="flex justify-between items-center border-b border-slate-800 pb-1">
+                                <span class="text-[11px] font-bold text-indigo-400 flex items-center gap-1">
+                                    <i class="fa-solid fa-gauge-high"></i> Telemetri Fisika Real-Time
+                                </span>
+                                <span id="telemetryStateBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">OK</span>
+                            </div>
+
+                            <div id="telemetrySurfaceView" class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                                    <span class="text-[10px] text-slate-400 block">Tegangan Permukaan ($\gamma$)</span>
+                                    <span id="telGamma" class="text-xs font-bold text-amber-400 font-mono">0.0728 N/m</span>
+                                </div>
+                                <div class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                                    <span class="text-[10px] text-slate-400 block">Gaya Tegangan ($F = \gamma \cdot 2L$)</span>
+                                    <span id="telForce" class="text-xs font-bold text-indigo-400 font-mono">0.0051 N</span>
+                                </div>
+                            </div>
+
+                            <div id="telemetryViscosityView" class="grid grid-cols-2 gap-2 text-xs hidden">
+                                <div class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                                    <span class="text-[10px] text-slate-400 block">Viskositas ($\eta$)</span>
+                                    <span id="telViscosity" class="text-xs font-bold text-amber-400 font-mono">0.0010 Pa·s</span>
+                                </div>
+                                <div class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                                    <span class="text-[10px] text-slate-400 block">Kecepatan Terminal ($v_T$)</span>
+                                    <span id="telTerminalVel" class="text-xs font-bold text-cyan-400 font-mono">1.25 m/s</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </section>
+
+            <section id="step2View" class="step-view hidden space-y-4">
+                <h2 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Katalog Alat & Bahan Virtual Lab</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                    <div class="glass-card p-4 rounded-2xl border border-slate-800 text-center space-y-2">
+                        <i class="fa-solid fa-flask-vial text-3xl text-cyan-400"></i>
+                        <h3 class="font-bold text-white">Beaker Glass & Tabung</h3>
+                        <p class="text-[11px] text-slate-400">Wadah penampung fluida cair statis.</p>
+                    </div>
+                    <div class="glass-card p-4 rounded-2xl border border-slate-800 text-center space-y-2">
+                        <i class="fa-solid fa-droplet text-3xl text-blue-400"></i>
+                        <h3 class="font-bold text-white">Fluida Uji</h3>
+                        <p class="text-[11px] text-slate-400">Air murni, larutan sabun, minyak, gliserin & madu.</p>
+                    </div>
+                    <div class="glass-card p-4 rounded-2xl border border-slate-800 text-center space-y-2">
+                        <i class="fa-solid fa-paperclip text-3xl text-amber-400"></i>
+                        <h3 class="font-bold text-white">Benda Uji Permukaan</h3>
+                        <p class="text-[11px] text-slate-400">Klip kertas, jarum jahit, dan silet baja.</p>
+                    </div>
+                    <div class="glass-card p-4 rounded-2xl border border-slate-800 text-center space-y-2">
+                        <i class="fa-solid fa-circle text-3xl text-indigo-400"></i>
+                        <h3 class="font-bold text-white">Bola Kelereng / Steel Ball</h3>
+                        <p class="text-[11px] text-slate-400">Bola baja dan kaca untuk pengujian Hukum Stokes.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="step3View" class="step-view hidden space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Data Table -->
+                    <div class="lg:col-span-7 glass-card p-5 rounded-3xl border border-slate-800 space-y-3">
+                        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                            <h3 class="text-xs font-bold uppercase text-slate-300">Tabel Data Hasil Eksperimen</h3>
+                            <button onclick="clearRecordedData()" class="text-xs text-rose-400 hover:underline"><i class="fa-solid fa-trash"></i> Hapus Data</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-900 text-slate-300 border-b border-slate-800">
+                                        <th class="p-2">No</th>
+                                        <th class="p-2">Mode</th>
+                                        <th class="p-2">Sampel/Fluida</th>
+                                        <th class="p-2">Parameter</th>
+                                        <th class="p-2">Hasil Ukur</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trialTableBody" class="divide-y divide-slate-800 text-slate-300">
+                                    <tr>
+                                        <td colspan="5" class="p-4 text-center text-slate-500 italic">Belum ada data recorded. Lakukakan eksperimen di Step 1 lalu klik "Catat Data".</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Graph -->
+                    <div class="lg:col-span-5 glass-card p-5 rounded-3xl border border-slate-800 space-y-3 flex flex-col justify-between">
+                        <h3 class="text-xs font-bold uppercase text-slate-300">Grafik Dynamic Telemetry</h3>
+                        <div class="relative w-full h-64">
+                            <canvas id="dynamicChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="step4View" class="step-view hidden space-y-6">
+                <div class="glass-card p-6 rounded-3xl border border-slate-800 space-y-4">
+                    <h2 class="text-xs font-bold uppercase text-amber-400">Soal Analisis Fisika (HOTS)</h2>
+                    
+                    <div class="space-y-2 text-xs">
+                        <p class="font-semibold text-slate-200">1. Mengapa penambahan sabun/detergen dapat menurunkan tegangan permukaan air?</p>
+                        <textarea id="ans1" rows="2" placeholder="Tuliskan alasan terkait molekul surfaktan..." class="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white focus:outline-none"></textarea>
+                    </div>
+
+                    <div class="space-y-2 text-xs">
+                        <p class="font-semibold text-slate-200">2. Menurut Hukum Stokes, bagaimana hubungan viskositas fluida terhadap kecepatan terminal jatuh bola?</p>
+                        <textarea id="ans2" rows="2" placeholder="Jelaskan hubungan keterbalikan viskositas vs kecepatan terminal..." class="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white focus:outline-none"></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <section id="step5View" class="step-view hidden space-y-6">
+                <div class="no-print bg-slate-900 p-4 rounded-2xl border border-slate-800 flex justify-between items-center">
+                    <span class="text-xs font-bold text-white">Lembar Kerja Peserta Didik (LKPD) Siap Cetak</span>
+                    <button onclick="window.print()" class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow">
+                        <i class="fa-solid fa-print"></i> Cetak / Simpan PDF
+                    </button>
+                </div>
+
+                <div class="print-page print-card bg-slate-900/90 p-6 rounded-3xl border border-slate-800 space-y-4">
+                    <h2 class="text-sm font-extrabold text-indigo-400 uppercase text-center border-b border-slate-800 pb-3">
+                        LKPD PRAKTIKUM FLUIDA STATIS (WEBAR VIRTUAL LAB)
+                    </h2>
+
+                    <div class="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                            <span class="text-slate-400 block">Nama Siswa:</span>
+                            <span id="lkpdNama" class="font-bold text-white font-mono">-</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block">Kelas / Kelompok:</span>
+                            <span id="lkpdKelas" class="font-bold text-white font-mono">-</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 text-xs pt-2">
+                        <h3 class="font-bold text-amber-400 uppercase">Tabel Data Hasil Pengamatan:</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-800 text-slate-300">
+                                        <th class="p-2 border border-slate-700">No</th>
+                                        <th class="p-2 border border-slate-700">Mode Lab</th>
+                                        <th class="p-2 border border-slate-700">Sampel/Fluida</th>
+                                        <th class="p-2 border border-slate-700">Parameter</th>
+                                        <th class="p-2 border border-slate-700">Hasil</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lkpdSyncedTable" class="divide-y divide-slate-800 text-slate-300">
+                                    <tr>
+                                        <td colspan="5" class="p-3 text-center text-slate-500">Belum ada data eksperimen.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        let currentStep = 1;
+        let labMode = 'surface'; // 'surface' or 'viscosity'
+
+        // Surface Tension State
+        let surfaceState = {
+            soapPct: 0,
+            testObj: 'klip',
+            tech: 'gentle',
+            gamma: 0.0728,
+            surfaceForce: 0.0051,
+            weightForce: 0.0039,
+            isFloating: true
+        };
+
+        // Viscosity State
+        let viscosityState = {
+            fluidType: 'water', // water, oil, glycerin, honey
+            viscosityEta: 0.001, // Pa·s
+            fluidDensity: 1000, // kg/m3
+            ballRadiusCm: 0.5, // cm
+            ballMat: 'steel', // steel (7800) or glass (2500)
+            ballDensity: 7800,
+            terminalVel: 1.25, // m/s
+            isDropping: false
+        };
+
+        let recordedTrials = [];
+        let isMoleculeView = false;
+        let isARActive = false;
+        let webcamStream = null;
+
+        // Three.js Scene Variables
+        let scene, camera, renderer, beakerGroup, viscosityGroup, surfaceObjMesh, viscosityBallMesh, moleculeGroup;
+        let chartInstance = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('inputStudentDate').value = today;
+
+            initThreeJS();
+            initChartJS();
+            updatePhysics();
+            window.addEventListener('resize', onWindowResize);
+        });
+
+        function switchLabMode(mode) {
+            labMode = mode;
+
+            const btnSurface = document.getElementById('modeBtnSurface');
+            const btnViscosity = document.getElementById('modeBtnViscosity');
+            const labelMode = document.getElementById('activeModeLabel');
+
+            if (mode === 'surface') {
+                btnSurface.className = "px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 bg-indigo-600 text-white shadow";
+                btnViscosity.className = "px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white";
+                labelMode.innerText = "TEGANGAN PERMUKAAN";
+
+                document.getElementById('controlsSurface').classList.remove('hidden');
+                document.getElementById('controlsViscosity').classList.add('hidden');
+
+                document.getElementById('telemetrySurfaceView').classList.remove('hidden');
+                document.getElementById('telemetryViscosityView').classList.add('hidden');
+
+                document.getElementById('actionBtnText').innerText = "Tempatkan Benda Uji";
+
+                if (beakerGroup) beakerGroup.visible = true;
+                if (viscosityGroup) viscosityGroup.visible = false;
+            } else {
+                btnViscosity.className = "px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 bg-indigo-600 text-white shadow";
+                btnSurface.className = "px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white";
+                labelMode.innerText = "VISKOSITAS FLUIDA";
+
+                document.getElementById('controlsSurface').classList.add('hidden');
+                document.getElementById('controlsViscosity').classList.remove('hidden');
+
+                document.getElementById('telemetrySurfaceView').classList.add('hidden');
+                document.getElementById('telemetryViscosityView').classList.remove('hidden');
+
+                document.getElementById('actionBtnText').innerText = "Jatuhkan Bola Kelereng";
+
+                if (beakerGroup) beakerGroup.visible = false;
+                if (viscosityGroup) viscosityGroup.visible = true;
+            }
+
+            updatePhysics();
+        }
+
+        function goToStep(stepNum) {
+            currentStep = stepNum;
+            document.querySelectorAll('.step-view').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`step${stepNum}View`).classList.remove('hidden');
+
+            for (let i = 1; i <= 5; i++) {
+                const btn = document.getElementById(`stepBtn${i}`);
+                if (i === stepNum) {
+                    btn.className = "px-3 py-1.5 rounded-xl font-bold transition bg-indigo-600 text-white shadow";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-xl font-medium transition bg-slate-800 text-slate-400 hover:text-white";
+                }
+            }
+
+            if (stepNum === 5) syncStudentIdentity();
+        }
+
+        function syncStudentIdentity() {
+            const nama = document.getElementById('inputStudentName').value || "-";
+            const kelas = document.getElementById('inputStudentClassGroup').value || "-";
+            document.getElementById('lkpdNama').innerText = nama;
+            document.getElementById('lkpdKelas').innerText = kelas;
+            syncLKPDTable();
+        }
+
+        function updatePhysics() {
+            if (labMode === 'surface') {
+                const soapVal = parseInt(document.getElementById('sliderSoapPct').value);
+                surfaceState.soapPct = soapVal;
+
+                const soapLabels = { 0: "0% (Air Murni)", 1: "1% Sabun", 2: "2% Sabun", 3: "3% Sabun", 5: "5% Sabun" };
+                document.getElementById('dispSoapPct').innerText = soapLabels[soapVal];
+
+                surfaceState.gamma = Math.max(0.02, 0.0728 - (soapVal * 0.011));
+                let massKg = 0.0004, contactL = 0.035;
+
+                if (surfaceState.testObj === 'jarum') { massKg = 0.0002; contactL = 0.03; }
+                else if (surfaceState.testObj === 'silet') { massKg = 0.0005; contactL = 0.04; }
+
+                surfaceState.surfaceForce = surfaceState.gamma * (2.0 * contactL);
+                surfaceState.weightForce = massKg * 9.8;
+
+                surfaceState.isFloating = (surfaceState.tech === 'gentle') && (surfaceState.weightForce <= surfaceState.surfaceForce);
+
+                document.getElementById('telGamma').innerText = surfaceState.gamma.toFixed(4) + ' N/m';
+                document.getElementById('telForce').innerText = surfaceState.surfaceForce.toFixed(4) + ' N';
+
+                const badge = document.getElementById('telemetryStateBadge');
+                badge.innerText = surfaceState.isFloating ? "TERAPUNG" : "TENGGELAM";
+                badge.className = surfaceState.isFloating ? 
+                    "text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30" :
+                    "text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30";
+
+                updateSurfaceObjMesh();
+            } else {
+                // Viscosity Lab Logic (Stokes Law)
+                const fType = document.getElementById('selectFluidType').value;
+                viscosityState.fluidType = fType;
+
+                const fluidParams = {
+                    water: { eta: 0.001, rho: 1000 },
+                    oil: { eta: 0.05, rho: 920 },
+                    glycerin: { eta: 1.49, rho: 1260 },
+                    honey: { eta: 10.0, rho: 1420 }
+                };
+
+                viscosityState.viscosityEta = fluidParams[fType].eta;
+                viscosityState.fluidDensity = fluidParams[fType].rho;
+
+                const rCm = parseFloat(document.getElementById('sliderBallRadius').value);
+                viscosityState.ballRadiusCm = rCm;
+                document.getElementById('dispBallRadius').innerText = rCm.toFixed(1) + ' cm';
+
+                const rMeters = rCm / 100.0;
+                const g = 9.8;
+                const deltaRho = viscosityState.ballDensity - viscosityState.fluidDensity;
+
+                // Terminal Velocity equation: v_T = (2 * r^2 * g * (rho_s - rho_f)) / (9 * eta)
+                if (deltaRho > 0) {
+                    viscosityState.terminalVel = (2.0 * Math.pow(rMeters, 2) * g * deltaRho) / (9.0 * viscosityState.viscosityEta);
+                } else {
+                    viscosityState.terminalVel = 0.01;
+                }
+
+                document.getElementById('telViscosity').innerText = viscosityState.viscosityEta.toFixed(4) + ' Pa·s';
+                document.getElementById('telTerminalVel').innerText = viscosityState.terminalVel.toFixed(2) + ' m/s';
+
+                const badge = document.getElementById('telemetryStateBadge');
+                badge.innerText = "VISKUS";
+                badge.className = "text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-bold border border-cyan-500/30";
+
+                updateViscosityBallMesh();
+            }
+        }
+
+        function selectTestObj(obj) {
+            surfaceState.testObj = obj;
+            ['klip', 'jarum', 'silet'].forEach(o => {
+                const btn = document.getElementById(`objBtn${o.charAt(0).toUpperCase() + o.slice(1)}`);
+                if (o === obj) btn.className = "p-2 bg-indigo-600 text-white rounded-xl font-semibold text-center";
+                else btn.className = "p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold text-center";
+            });
+            updatePhysics();
+        }
+
+        function selectTech(t) {
+            surfaceState.tech = t;
+            const btnG = document.getElementById('techBtnGentle');
+            const btnD = document.getElementById('techBtnDrop');
+            if (t === 'gentle') {
+                btnG.className = "p-2 bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-xl font-semibold";
+                btnD.className = "p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold";
+            } else {
+                btnG.className = "p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold";
+                btnD.className = "p-2 bg-rose-600/30 text-rose-300 border border-rose-500/40 rounded-xl font-semibold";
+            }
+            updatePhysics();
+        }
+
+        function selectBallMat(mat) {
+            viscosityState.ballMat = mat;
+            viscosityState.ballDensity = mat === 'steel' ? 7800 : 2500;
+
+            document.getElementById('ballMatSteel').className = mat === 'steel' ? "p-2 bg-indigo-600 text-white rounded-xl font-semibold" : "p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold";
+            document.getElementById('ballMatGlass').className = mat === 'glass' ? "p-2 bg-indigo-600 text-white rounded-xl font-semibold" : "p-2 bg-slate-900 text-slate-400 hover:text-white rounded-xl font-semibold";
+
+            updatePhysics();
+        }
+
+        function initThreeJS() {
+            const container = document.querySelector('.canvas-container');
+            const w = container.clientWidth, h = container.clientHeight;
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+            camera.position.set(0, 1.8, 4.2);
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('threeCanvas'), antialias: true, alpha: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambient);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            dirLight.position.set(5, 10, 7);
+            scene.add(dirLight);
+
+            // Construct 3D Beaker for Surface Tension
+            beakerGroup = new THREE.Group();
+            const beakerGeo = new THREE.CylinderGeometry(1.2, 1.2, 1.8, 32, 1, true);
+            const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, transmission: 0.9, roughness: 0.1 });
+            const beakerMesh = new THREE.Mesh(beakerGeo, glassMat);
+            beakerGroup.add(beakerMesh);
+
+            const liqGeo = new THREE.CylinderGeometry(1.16, 1.16, 1.3, 32);
+            const liqMat = new THREE.MeshPhongMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 });
+            const liqMesh = new THREE.Mesh(liqGeo, liqMat);
+            liqMesh.position.y = -0.2;
+            beakerGroup.add(liqMesh);
+
+            scene.add(beakerGroup);
+
+            // Construct 3D Tube Cylinder for Viscosity Test
+            viscosityGroup = new THREE.Group();
+            const tubeGeo = new THREE.CylinderGeometry(0.6, 0.6, 3.0, 32, 1, true);
+            const tubeMesh = new THREE.Mesh(tubeGeo, glassMat);
+            viscosityGroup.add(tubeMesh);
+
+            const vLiqGeo = new THREE.CylinderGeometry(0.58, 0.58, 2.8, 32);
+            const vLiqMat = new THREE.MeshPhongMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.7 });
+            const vLiqMesh = new THREE.Mesh(vLiqGeo, vLiqMat);
+            viscosityGroup.add(vLiqMesh);
+
+            viscosityGroup.visible = false;
+            scene.add(viscosityGroup);
+
+            // Molecule Visualization Group
+            moleculeGroup = new THREE.Group();
+            moleculeGroup.visible = false;
+            const molGeo = new THREE.SphereGeometry(0.05, 12, 12);
+            const molMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+            for (let i = 0; i < 12; i++) {
+                const mol = new THREE.Mesh(molGeo, molMat);
+                mol.position.set((Math.random()-0.5)*1.2, (Math.random()-0.5)*1.2, (Math.random()-0.5)*1.2);
+                moleculeGroup.add(mol);
+            }
+            scene.add(moleculeGroup);
+
+            animate3D();
+        }
+
+        function updateSurfaceObjMesh() {
+            if (surfaceObjMesh) beakerGroup.remove(surfaceObjMesh);
+
+            const geo = new THREE.TorusGeometry(0.2, 0.02, 8, 24);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 });
+            surfaceObjMesh = new THREE.Mesh(geo, mat);
+            surfaceObjMesh.position.y = surfaceState.isFloating ? 0.44 : -0.7;
+            beakerGroup.add(surfaceObjMesh);
+        }
+
+        function updateViscosityBallMesh() {
+            if (viscosityBallMesh) viscosityGroup.remove(viscosityBallMesh);
+
+            const rScale = viscosityState.ballRadiusCm * 0.15;
+            const geo = new THREE.SphereGeometry(rScale, 24, 24);
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: viscosityState.ballMat === 'steel' ? 0x94a3b8 : 0x38bdf8, 
+                metalness: viscosityState.ballMat === 'steel' ? 0.9 : 0.2 
+            });
+            viscosityBallMesh = new THREE.Mesh(geo, mat);
+            viscosityBallMesh.position.y = 1.3;
+            viscosityGroup.add(viscosityBallMesh);
+        }
+
+        function runExperimentAction() {
+            if (labMode === 'viscosity') {
+                viscosityState.isDropping = true;
+                viscosityBallMesh.position.y = 1.3;
+                showToast("Mulai menjatuhkan bola kelereng!", "fa-play");
+            } else {
+                updatePhysics();
+                showToast(`Hasil: Benda ${surfaceState.isFloating ? 'Terapung' : 'Tenggelam'}!`, surfaceState.isFloating ? 'fa-circle-check' : 'fa-circle-xmark');
+            }
+        }
+
+        function recordDataTrial() {
+            const newTrial = {
+                no: recordedTrials.length + 1,
+                mode: labMode === 'surface' ? 'Tegangan Permukaan' : 'Viskositas',
+                sampel: labMode === 'surface' ? `${surfaceState.testObj.toUpperCase()} (Sabun ${surfaceState.soapPct}%)` : `${viscosityState.fluidType.toUpperCase()} (${viscosityState.ballMat})`,
+                parameter: labMode === 'surface' ? `Metode: ${surfaceState.tech}` : `Radius: ${viscosityState.ballRadiusCm} cm`,
+                hasil: labMode === 'surface' ? `γ = ${surfaceState.gamma.toFixed(4)} N/m (${surfaceState.isFloating ? 'Terapung' : 'Tenggelam'})` : `v_T = ${viscosityState.terminalVel.toFixed(2)} m/s`
+            };
+
+            recordedTrials.push(newTrial);
+            renderTable();
+            showToast("Data percobaan berhasil dicatat!", "fa-bookmark");
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('trialTableBody');
+            if (recordedTrials.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">Belum ada data recorded. Lakukakan eksperimen di Step 1 lalu klik "Catat Data".</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = recordedTrials.map(t => `
+                <tr class="hover:bg-slate-900/60">
+                    <td class="p-2 font-mono">${t.no}</td>
+                    <td class="p-2 font-semibold text-indigo-400">${t.mode}</td>
+                    <td class="p-2 font-semibold text-white">${t.sampel}</td>
+                    <td class="p-2 text-slate-300">${t.parameter}</td>
+                    <td class="p-2 font-mono font-bold text-emerald-400">${t.hasil}</td>
+                </tr>
+            `).join('');
+
+            syncLKPDTable();
+        }
+
+        function clearRecordedData() {
+            recordedTrials = [];
+            renderTable();
+            showToast("Data percobaan dihapus.", "fa-trash");
+        }
+
+        function syncLKPDTable() {
+            const tbody = document.getElementById('lkpdSyncedTable');
+            if (recordedTrials.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-3 text-center text-slate-500">Belum ada data eksperimen.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = recordedTrials.map(t => `
+                <tr>
+                    <td class="p-2 border border-slate-700 font-mono">${t.no}</td>
+                    <td class="p-2 border border-slate-700">${t.mode}</td>
+                    <td class="p-2 border border-slate-700 font-bold">${t.sampel}</td>
+                    <td class="p-2 border border-slate-700">${t.parameter}</td>
+                    <td class="p-2 border border-slate-700 font-mono text-emerald-400 font-bold">${t.hasil}</td>
+                </tr>
+            `).join('');
+        }
+
+        function initChartJS() {
+            const ctx = document.getElementById('dynamicChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Air Murni', '1% Sabun', '2% Sabun', '3% Sabun', '5% Sabun'],
+                    datasets: [{
+                        label: 'Tegangan Permukaan γ (N/m)',
+                        data: [0.0728, 0.0618, 0.0508, 0.0398, 0.0200],
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                    },
+                    plugins: { legend: { labels: { color: '#f8fafc' } } }
+                }
+            });
+        }
+
+        function toggleMoleculeView() {
+            isMoleculeView = !isMoleculeView;
+            if (moleculeGroup) moleculeGroup.visible = isMoleculeView;
+            document.getElementById('molBadgeOverlay').classList.toggle('hidden', !isMoleculeView);
+            document.getElementById('molToggleText').innerText = isMoleculeView ? "Sembunyikan Molekul" : "Lihat Visualisasi Molekul";
+        }
+
+        async function toggleWebARCamera() {
+            const video = document.getElementById('webcamVideo');
+            const badge = document.getElementById('arBadgeOverlay');
+            const btnText = document.getElementById('arCamHeaderBtnText');
+
+            if (!isARActive) {
+                try {
+                    webcamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    video.srcObject = webcamStream;
+                    video.style.display = 'block';
+                    badge.classList.remove('hidden');
+                    btnText.innerText = "Matikan Kamera AR";
+                    isARActive = true;
+                    showToast("Kamera WebAR aktif!", "fa-camera");
+                } catch (err) {
+                    showToast("Tidak dapat mengakses kamera: " + err.message, "fa-triangle-exclamation");
+                }
+            } else {
+                if (webcamStream) webcamStream.getTracks().forEach(t => t.stop());
+                video.style.display = 'none';
+                badge.classList.add('hidden');
+                btnText.innerText = "Aktifkan Kamera AR";
+                isARActive = false;
+            }
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+
+            if (beakerGroup && labMode === 'surface') {
+                beakerGroup.rotation.y += 0.003;
+            }
+
+            if (viscosityGroup && labMode === 'viscosity') {
+                viscosityGroup.rotation.y += 0.002;
+
+                if (viscosityState.isDropping && viscosityBallMesh) {
+                    const fallSpeed = Math.min(0.08, viscosityState.terminalVel * 0.01);
+                    viscosityBallMesh.position.y -= fallSpeed;
+
+                    if (viscosityBallMesh.position.y <= -1.2) {
+                        viscosityBallMesh.position.y = -1.2;
+                        viscosityState.isDropping = false;
+                        showToast("Bola telah mencapai dasar tabung!", "fa-circle-check");
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const container = document.querySelector('.canvas-container');
+            if (!container || !renderer || !camera) return;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function showToast(msg, icon = 'fa-info-circle') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').innerText = msg;
+            document.getElementById('toastIcon').className = `fa-solid ${icon} text-indigo-400 text-lg`;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+    </script>
+</body>
+</html>
